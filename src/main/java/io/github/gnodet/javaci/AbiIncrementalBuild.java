@@ -47,10 +47,13 @@ public class AbiIncrementalBuild {
     private final Path stateFile;
     private List<Path> classpathEntries;
     private Set<Path> reactorModulePaths;
+    private List<Path> processorPath;
+    private ProcessorClassification processorClassification;
 
     private IncrementalState previousState;
     private IncrementalState state;
     private Map<String, String> sourceHashes;
+    private List<Path> allSourceFiles;
     private Set<String> allCompiled;
     private CompilationAnalyzer currentAnalyzer;
     private boolean fullBuild;
@@ -79,6 +82,18 @@ public class AbiIncrementalBuild {
     }
 
     /**
+     * Sets the annotation processor classpath for processor classification.
+     * Entries are scanned for {@code META-INF/javaci/incremental.annotation.processors}
+     * and {@code META-INF/gradle/incremental.annotation.processors} to determine
+     * whether each processor is {@link ProcessorType#ISOLATING},
+     * {@link ProcessorType#AGGREGATING}, or {@link ProcessorType#UNKNOWN}.
+     */
+    public void setProcessorPath(List<Path> processorPath) {
+        this.processorPath = processorPath;
+        this.processorClassification = new ProcessorClassification(processorPath);
+    }
+
+    /**
      * Initializes the incremental build by scanning source files and comparing
      * against the previous build's state.
      *
@@ -89,6 +104,7 @@ public class AbiIncrementalBuild {
     public Set<Path> initialize(List<Path> allSourceFiles) throws IOException {
         Files.createDirectories(outputDir);
 
+        this.allSourceFiles = allSourceFiles;
         totalSources = allSourceFiles.size();
         allCompiled = new TreeSet<>();
         sourceHashes = hashSourceFiles(allSourceFiles);
@@ -142,7 +158,8 @@ public class AbiIncrementalBuild {
         for (var result : results.values()) {
             state.setType(result.qualifiedName(), new IncrementalState.TypeInfo(
                 result.sourceFile(), result.abiFingerprint(),
-                result.signatureDeps(), result.implementationDeps()));
+                result.signatureDeps(), result.implementationDeps(),
+                result.annotationTypes()));
         }
 
         if (fullBuild || abiChanged.isEmpty()) {
@@ -165,6 +182,9 @@ public class AbiIncrementalBuild {
                 }
             }
         }
+
+        // Annotation processor cascade
+        additionalFiles.addAll(computeProcessorCascade());
 
         return additionalFiles;
     }
@@ -280,6 +300,97 @@ public class AbiIncrementalBuild {
         var result = new TreeSet<Path>();
         for (String s : toRecompile) result.add(Path.of(s));
         return result;
+    }
+
+    // --- Annotation processor handling ---
+
+    /**
+     * Determines additional files to compile based on annotation processor classification.
+     * Called during incremental builds when annotated sources are in the compile set.
+     *
+     * <ul>
+     *   <li>ISOLATING: no extra files needed (default, current behavior works)</li>
+     *   <li>AGGREGATING: all sources carrying the processor's trigger annotations</li>
+     *   <li>UNKNOWN: all sources (conservative full rebuild)</li>
+     * </ul>
+     */
+    private Set<Path> computeProcessorCascade() {
+        if (processorClassification == null) {
+            return Set.of();
+        }
+
+        // Collect annotation types from types we just compiled
+        var compiledAnnotations = new TreeSet<String>();
+        for (var entry : state.getTypes().entrySet()) {
+            if (allCompiled.contains(state.sourceFileFor(entry.getKey()))) {
+                compiledAnnotations.addAll(entry.getValue().annotationTypes());
+            }
+        }
+
+        if (compiledAnnotations.isEmpty()) {
+            return Set.of();
+        }
+
+        // Check if any compiled annotation triggers an AGGREGATING or UNKNOWN processor
+        boolean hasUnknown = false;
+        boolean hasAggregating = false;
+        Set<String> aggregatingAnnotations = new TreeSet<>();
+
+        for (String annotation : compiledAnnotations) {
+            // Classification is by processor name, not annotation name.
+            // We need to check the worst-case across all processors.
+            // For simplicity, check against all known annotations in the state.
+        }
+
+        // Use worst-case classification from the processor path
+        var allAnnotations = state.getAllAnnotationTypes();
+        if (allAnnotations.isEmpty()) {
+            return Set.of();
+        }
+
+        // If any annotation is present on a compiled type and processors exist,
+        // check the worst-case processor type
+        ProcessorType worstCase = processorClassification.worstCase(List.of());
+
+        // Re-evaluate: check if any processors on the path are UNKNOWN or AGGREGATING
+        var classificationMap = processorClassification.getClassifications();
+        for (var entry : classificationMap.entrySet()) {
+            if (entry.getValue() == ProcessorType.UNKNOWN) {
+                hasUnknown = true;
+            } else if (entry.getValue() == ProcessorType.AGGREGATING) {
+                hasAggregating = true;
+            }
+        }
+
+        // If no processors are classified at all but processor path is set,
+        // we can't know what annotations they handle — conservative approach
+        if (classificationMap.isEmpty() && processorPath != null && !processorPath.isEmpty()) {
+            hasUnknown = true;
+        }
+
+        var additionalFiles = new TreeSet<Path>();
+
+        if (hasUnknown) {
+            // UNKNOWN: recompile all source files
+            for (Path sf : allSourceFiles) {
+                if (!allCompiled.contains(sf.toString())) {
+                    additionalFiles.add(sf);
+                    allCompiled.add(sf.toString());
+                }
+            }
+        } else if (hasAggregating) {
+            // AGGREGATING: recompile all annotated sources
+            Set<String> annotatedFiles = state.getSourceFilesWithAnnotations(allAnnotations);
+            for (String sf : annotatedFiles) {
+                if (!allCompiled.contains(sf)) {
+                    additionalFiles.add(Path.of(sf));
+                    allCompiled.add(sf);
+                }
+            }
+        }
+        // ISOLATING: no extra files needed
+
+        return additionalFiles;
     }
 
     // --- External ABI tracking ---

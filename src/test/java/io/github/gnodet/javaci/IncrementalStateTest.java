@@ -40,10 +40,12 @@ class IncrementalStateTest {
         state.setType("pkg.Foo", new IncrementalState.TypeInfo(
             "src/Foo.java", "fp1",
             new TreeSet<>(Set.of("pkg.Bar")),
-            new TreeSet<>(Set.of("pkg.Helper"))
+            new TreeSet<>(Set.of("pkg.Helper")),
+            new TreeSet<>()
         ));
         state.setType("pkg.Bar", new IncrementalState.TypeInfo(
             "src/Bar.java", "fp2",
+            new TreeSet<>(),
             new TreeSet<>(),
             new TreeSet<>()
         ));
@@ -76,7 +78,7 @@ class IncrementalStateTest {
     void getAbiFingerprint() {
         var state = new IncrementalState();
         state.setType("A", new IncrementalState.TypeInfo("a.java", "hash1",
-            new TreeSet<>(), new TreeSet<>()));
+            new TreeSet<>(), new TreeSet<>(), new TreeSet<>()));
         assertEquals("hash1", state.getAbiFingerprint("A"));
         assertNull(state.getAbiFingerprint("Unknown"));
     }
@@ -87,9 +89,9 @@ class IncrementalStateTest {
         state.setSourceHash("a.java", "h1");
         state.setSourceHash("b.java", "h2");
         state.setType("A", new IncrementalState.TypeInfo("a.java", "fp",
-            new TreeSet<>(), new TreeSet<>()));
+            new TreeSet<>(), new TreeSet<>(), new TreeSet<>()));
         state.setType("B", new IncrementalState.TypeInfo("b.java", "fp2",
-            new TreeSet<>(), new TreeSet<>()));
+            new TreeSet<>(), new TreeSet<>(), new TreeSet<>()));
 
         state.removeSource("a.java");
         assertNull(state.getSourceHash("a.java"));
@@ -101,11 +103,11 @@ class IncrementalStateTest {
     void getTypesFromSource() {
         var state = new IncrementalState();
         state.setType("A", new IncrementalState.TypeInfo("a.java", "fp1",
-            new TreeSet<>(), new TreeSet<>()));
+            new TreeSet<>(), new TreeSet<>(), new TreeSet<>()));
         state.setType("B", new IncrementalState.TypeInfo("a.java", "fp2",
-            new TreeSet<>(), new TreeSet<>()));
+            new TreeSet<>(), new TreeSet<>(), new TreeSet<>()));
         state.setType("C", new IncrementalState.TypeInfo("c.java", "fp3",
-            new TreeSet<>(), new TreeSet<>()));
+            new TreeSet<>(), new TreeSet<>(), new TreeSet<>()));
 
         var fromA = state.getTypesFromSource("a.java");
         assertEquals(2, fromA.size());
@@ -118,11 +120,11 @@ class IncrementalStateTest {
     void signatureAndImplementationConsumers() {
         var state = new IncrementalState();
         state.setType("A", new IncrementalState.TypeInfo("a.java", "fp",
-            new TreeSet<>(), new TreeSet<>()));
+            new TreeSet<>(), new TreeSet<>(), new TreeSet<>()));
         state.setType("B", new IncrementalState.TypeInfo("b.java", "fp",
-            new TreeSet<>(Set.of("A")), new TreeSet<>()));
+            new TreeSet<>(Set.of("A")), new TreeSet<>(), new TreeSet<>()));
         state.setType("C", new IncrementalState.TypeInfo("c.java", "fp",
-            new TreeSet<>(), new TreeSet<>(Set.of("A"))));
+            new TreeSet<>(), new TreeSet<>(Set.of("A")), new TreeSet<>()));
 
         assertEquals(Set.of("B"), state.getSignatureConsumers("A"));
         assertEquals(Set.of("C"), state.getImplementationConsumers("A"));
@@ -134,7 +136,7 @@ class IncrementalStateTest {
     void sourceFileFor() {
         var state = new IncrementalState();
         state.setType("X", new IncrementalState.TypeInfo("x.java", "fp",
-            new TreeSet<>(), new TreeSet<>()));
+            new TreeSet<>(), new TreeSet<>(), new TreeSet<>()));
         assertEquals("x.java", state.sourceFileFor("X"));
         assertNull(state.sourceFileFor("Y"));
     }
@@ -144,7 +146,7 @@ class IncrementalStateTest {
         var state = new IncrementalState();
         state.setSourceHash("a.java", "h1");
         state.setType("A", new IncrementalState.TypeInfo("a.java", "fp",
-            new TreeSet<>(), new TreeSet<>()));
+            new TreeSet<>(), new TreeSet<>(), new TreeSet<>()));
 
         var copy = state.copy();
         assertEquals("h1", copy.getSourceHash("a.java"));

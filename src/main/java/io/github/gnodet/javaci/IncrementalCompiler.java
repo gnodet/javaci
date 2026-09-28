@@ -216,7 +216,8 @@ public class IncrementalCompiler {
             for (var result : results.values()) {
                 state.setType(result.qualifiedName(), new IncrementalState.TypeInfo(
                     result.sourceFile(), result.abiFingerprint(),
-                    result.signatureDeps(), result.implementationDeps()));
+                    result.signatureDeps(), result.implementationDeps(),
+                    result.annotationTypes()));
             }
 
             if (!abiStable.isEmpty()) {

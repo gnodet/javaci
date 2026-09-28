@@ -24,7 +24,7 @@ import java.util.*;
  */
 public class IncrementalState {
 
-    private static final int VERSION = 3;
+    private static final int VERSION = 4;
 
     private final Map<String, String> sourceHashes = new LinkedHashMap<>();
     private final Map<String, TypeInfo> types = new LinkedHashMap<>();
@@ -35,7 +35,8 @@ public class IncrementalState {
         String sourceFile,
         String abiFingerprint,
         Set<String> signatureDeps,
-        Set<String> implementationDeps
+        Set<String> implementationDeps,
+        Set<String> annotationTypes
     ) {}
 
     public String getSourceHash(String path) {
@@ -129,6 +130,33 @@ public class IncrementalState {
     }
 
     /**
+     * Returns the source files of all types carrying any of the given annotations.
+     */
+    public Set<String> getSourceFilesWithAnnotations(Set<String> annotationTypes) {
+        var result = new TreeSet<String>();
+        for (TypeInfo info : types.values()) {
+            for (String ann : info.annotationTypes()) {
+                if (annotationTypes.contains(ann)) {
+                    result.add(info.sourceFile());
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Returns all annotation types used across all types in this module.
+     */
+    public Set<String> getAllAnnotationTypes() {
+        var result = new TreeSet<String>();
+        for (TypeInfo info : types.values()) {
+            result.addAll(info.annotationTypes());
+        }
+        return result;
+    }
+
+    /**
      * Returns the set of type names that appear in dependency sets but are not
      * defined in this module (no {@link TypeInfo} entry). These are types from
      * the classpath — other reactor modules or external libraries.
@@ -174,7 +202,8 @@ public class IncrementalState {
         for (var result : results.values()) {
             state.types.put(result.qualifiedName(), new TypeInfo(
                 result.sourceFile(), result.abiFingerprint(),
-                result.signatureDeps(), result.implementationDeps()));
+                result.signatureDeps(), result.implementationDeps(),
+                result.annotationTypes()));
         }
         return state;
     }
@@ -195,6 +224,8 @@ public class IncrementalState {
                 out.writeUTF(entry.getValue().abiFingerprint());
                 writeStringSet(out, entry.getValue().signatureDeps());
                 writeStringSet(out, entry.getValue().implementationDeps());
+                // v4: annotation types
+                writeStringSet(out, entry.getValue().annotationTypes());
             }
             // v2: external fingerprints
             writeStringMap(out, externalFingerprints);
@@ -221,7 +252,8 @@ public class IncrementalState {
                 String abi = in.readUTF();
                 Set<String> sigDeps = readStringSet(in);
                 Set<String> implDeps = readStringSet(in);
-                state.types.put(name, new TypeInfo(sourceFile, abi, sigDeps, implDeps));
+                Set<String> annotTypes = version >= 4 ? readStringSet(in) : Set.of();
+                state.types.put(name, new TypeInfo(sourceFile, abi, sigDeps, implDeps, annotTypes));
             }
             if (version >= 2) {
                 readStringMap(in, state.externalFingerprints);

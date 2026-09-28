@@ -2,6 +2,7 @@ package io.github.gnodet.javaci;
 
 import com.sun.source.util.*;
 
+import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.TypeElement;
 import java.util.*;
 
@@ -55,8 +56,17 @@ public class CompilationAnalyzer implements TaskListener {
         sigDeps.removeIf(CompilationAnalyzer::isJdkType);
         implDeps.removeIf(CompilationAnalyzer::isJdkType);
 
+        var annotationTypes = new TreeSet<String>();
+        for (AnnotationMirror am : typeElement.getAnnotationMirrors()) {
+            String annotName = am.getAnnotationType().toString();
+            if (!isJdkType(annotName)) {
+                annotationTypes.add(annotName);
+            }
+        }
+
         analyses.put(qualifiedName, new SourceFileAnalysis(
-            qualifiedName, sourceFile, sigDeps, implDeps, abiFingerprint, abiCanonical));
+            qualifiedName, sourceFile, sigDeps, implDeps, abiFingerprint, abiCanonical,
+            annotationTypes));
     }
 
     public Map<String, SourceFileAnalysis> getResults() {

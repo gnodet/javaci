@@ -15,6 +15,8 @@ import java.util.Set;
  *                           cascading to its consumers
  * @param abiFingerprint     truncated SHA-256 hash of the canonical ABI form
  * @param abiCanonical       human-readable canonical representation of the public API
+ * @param annotationTypes    fully qualified names of annotations present on this type,
+ *                           used for annotation processor classification decisions
  */
 public record SourceFileAnalysis(
     String qualifiedName,
@@ -22,5 +24,6 @@ public record SourceFileAnalysis(
     Set<String> signatureDeps,
     Set<String> implementationDeps,
     String abiFingerprint,
-    String abiCanonical
+    String abiCanonical,
+    Set<String> annotationTypes
 ) {}
