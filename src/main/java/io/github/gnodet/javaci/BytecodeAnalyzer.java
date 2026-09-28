@@ -8,6 +8,23 @@ import java.nio.file.*;
 import java.security.MessageDigest;
 import java.util.*;
 
+/**
+ * Analyzes compiled {@code .class} files using the {@link java.lang.classfile}
+ * API to extract type references and compute bytecode-level ABI fingerprints.
+ *
+ * <p>Type references are extracted from the constant pool's {@code CONSTANT_Class}
+ * entries. This captures types used in {@code new}, {@code checkcast},
+ * {@code instanceof}, exception handlers, and class hierarchy — but not types
+ * that only appear in field/method descriptors. For complete dependency tracking,
+ * use the source-level analysis in {@link DependencyScanner} as the primary path
+ * and this class for cross-validation.
+ *
+ * <p>The bytecode ABI reflects erased types (no generics) and is computed from
+ * non-private, non-synthetic fields and methods.
+ *
+ * @see AbiExtractor
+ * @see DependencyScanner
+ */
 public class BytecodeAnalyzer {
 
     public record ClassAnalysis(

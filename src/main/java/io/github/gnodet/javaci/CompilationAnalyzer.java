@@ -5,6 +5,21 @@ import com.sun.source.util.*;
 import javax.lang.model.element.TypeElement;
 import java.util.*;
 
+/**
+ * A {@link TaskListener} that intercepts javac's {@code ANALYZE} phase to extract
+ * per-type dependency and ABI information from a compilation.
+ *
+ * <p>For each type element analyzed, it runs a {@link DependencyScanner} over the
+ * compilation unit's AST to collect type references — classified as signature
+ * dependencies (appear in the public API surface) or implementation dependencies
+ * (body-only) — and uses {@link AbiExtractor} to compute an ABI fingerprint.
+ * Results are collected into {@link SourceFileAnalysis} records accessible
+ * via {@link #getResults()}.
+ *
+ * <p>JDK-internal types ({@code java.*}, {@code javax.*}, {@code jdk.*},
+ * {@code sun.*}) are filtered from the dependency sets since they never change
+ * across incremental builds.
+ */
 public class CompilationAnalyzer implements TaskListener {
 
     private final Trees trees;

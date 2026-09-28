@@ -10,6 +10,31 @@ import java.nio.file.*;
 import java.security.MessageDigest;
 import java.util.*;
 
+/**
+ * A {@link javax.tools.JavaCompiler.CompilationTask CompilationTask} that adds
+ * incremental compilation semantics on top of a delegate javac invocation.
+ *
+ * <p>When {@link #call()} is invoked:
+ * <ol>
+ *   <li>Load the previous build state from {@code .incremental-state} in the
+ *       {@link javax.tools.StandardLocation#CLASS_OUTPUT CLASS_OUTPUT} directory.</li>
+ *   <li>Hash every compilation unit and compare against stored hashes to find
+ *       changed, new, and deleted source files.</li>
+ *   <li>Compile only the changed subset, attaching a {@link CompilationAnalyzer}
+ *       to extract dependencies and ABI fingerprints.</li>
+ *   <li>If any ABI fingerprint changed, cascade through signature consumers
+ *       (transitively) and implementation consumers (directly), adding them
+ *       to the next compilation round.</li>
+ *   <li>Repeat until a fixpoint is reached (no further ABI changes).</li>
+ *   <li>Persist the updated state.</li>
+ * </ol>
+ *
+ * <p>Falls back to a full delegate compilation if no {@code CLASS_OUTPUT}
+ * location is set or if an error occurs during incremental processing.
+ *
+ * @see IncrementalJavaCompiler
+ * @see IncrementalState
+ */
 public class IncrementalCompilationTask implements JavaCompiler.CompilationTask {
 
     private final JavaCompiler delegate;

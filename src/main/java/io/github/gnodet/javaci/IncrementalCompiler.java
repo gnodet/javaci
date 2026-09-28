@@ -10,6 +10,22 @@ import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Stream;
 
+/**
+ * Command-line entry point for the incremental Java compiler.
+ *
+ * <p>Supports three modes:
+ * <ul>
+ *   <li><b>Default</b> — incremental compilation with persistent state.</li>
+ *   <li>{@code --spi} — uses {@link IncrementalJavaCompiler} through the
+ *       standard {@link javax.tools.JavaCompiler} API, demonstrating drop-in
+ *       usage.</li>
+ *   <li>{@code --analyze} — full compilation with detailed analysis output
+ *       including source-level dependency graphs, bytecode cross-validation
+ *       via {@link BytecodeAnalyzer}, and incremental recompilation simulation.</li>
+ * </ul>
+ *
+ * <p>Use {@code --clean} to discard previous state and force a full rebuild.
+ */
 public class IncrementalCompiler {
 
     private final Path sourceDir;

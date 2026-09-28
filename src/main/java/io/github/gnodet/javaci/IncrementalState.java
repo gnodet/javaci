@@ -4,6 +4,24 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 
+/**
+ * Persistent state for incremental compilation, storing per-source-file content
+ * hashes and per-type metadata (ABI fingerprint, signature dependencies, and
+ * implementation dependencies).
+ *
+ * <p>Serialized as a compact binary format via {@link java.io.DataOutputStream}
+ * and stored alongside the class output as {@code .incremental-state}. The state
+ * enables the incremental engine to detect which files changed, whether their
+ * ABI is affected, and which consumers need recompilation.
+ *
+ * <p>Consumer lookup methods ({@link #getSignatureConsumers},
+ * {@link #getImplementationConsumers}, {@link #getAllConsumers}) support the
+ * cascade logic: signature consumers are followed transitively (their ABI may
+ * change), while implementation consumers are recompiled directly but do not
+ * cascade further.
+ *
+ * @see IncrementalCompilationTask
+ */
 public class IncrementalState {
 
     private static final int VERSION = 1;

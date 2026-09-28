@@ -8,6 +8,21 @@ import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.*;
 
+/**
+ * Computes ABI (Application Binary Interface) fingerprints for Java types
+ * using the {@link javax.lang.model} element API.
+ *
+ * <p>The canonical form includes the type's modifiers, name, type parameters,
+ * superclass, interfaces, and all non-private members (fields, constructors,
+ * methods, nested types). For {@code static final} fields, the compile-time
+ * constant value is included so that changes to inlined constants are detected.
+ *
+ * <p>The fingerprint is a truncated SHA-256 hash of this canonical form.
+ * Two types have the same fingerprint if and only if their public API surfaces
+ * are identical — method body changes do not affect it.
+ *
+ * @see CompilationAnalyzer
+ */
 public class AbiExtractor {
 
     public static String computeFingerprint(TypeElement type) {
