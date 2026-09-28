@@ -108,10 +108,14 @@ public class ExternalAbiResolver {
             manifestCache = new HashMap<>();
             for (Path entry : classpathEntries) {
                 if (Files.isDirectory(entry)) {
-                    Path manifestFile = entry.resolve(AbiManifest.FILENAME);
-                    Map<String, String> manifest = AbiManifest.read(manifestFile);
-                    if (!manifest.isEmpty()) {
-                        manifestCache.put(entry, manifest);
+                    // Manifest is in the build directory (parent of classes dir)
+                    Path parent = entry.getParent();
+                    if (parent != null) {
+                        Path manifestFile = parent.resolve(AbiManifest.FILENAME);
+                        Map<String, String> manifest = AbiManifest.read(manifestFile);
+                        if (!manifest.isEmpty()) {
+                            manifestCache.put(entry, manifest);
+                        }
                     }
                 }
             }

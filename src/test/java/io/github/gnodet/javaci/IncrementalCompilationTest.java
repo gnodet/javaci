@@ -50,6 +50,11 @@ class IncrementalCompilationTest {
     }
 
     private String compile() throws Exception {
+        // Mirror Maven's target/classes layout so state goes to outputDir/
+        // (parent of classesDir) rather than leaking to a shared /tmp/
+        Path classesDir = outputDir.resolve("classes");
+        Files.createDirectories(classesDir);
+
         var sourceFiles = Files.walk(sourceDir)
             .filter(p -> p.toString().endsWith(".java"))
             .sorted()
@@ -58,7 +63,7 @@ class IncrementalCompilationTest {
         var compiler = new IncrementalJavaCompiler();
         var sw = new StringWriter();
         try (var fm = compiler.getStandardFileManager(null, null, null)) {
-            fm.setLocation(StandardLocation.CLASS_OUTPUT, List.of(outputDir.toFile()));
+            fm.setLocation(StandardLocation.CLASS_OUTPUT, List.of(classesDir.toFile()));
             var units = fm.getJavaFileObjectsFromPaths(sourceFiles);
             boolean success = compiler.getTask(sw, fm, null, null, null, units).call();
             assertTrue(success, "Compilation should succeed: " + sw);

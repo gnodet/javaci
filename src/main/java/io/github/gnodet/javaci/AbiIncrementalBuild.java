@@ -44,6 +44,7 @@ import java.util.stream.Stream;
 public class AbiIncrementalBuild {
 
     private final Path outputDir;
+    private final Path buildDir;
     private final Path stateFile;
     private List<Path> classpathEntries;
     private Set<Path> reactorModulePaths;
@@ -61,7 +62,8 @@ public class AbiIncrementalBuild {
 
     public AbiIncrementalBuild(Path outputDir) {
         this.outputDir = outputDir;
-        this.stateFile = outputDir.resolve(".incremental-state");
+        this.buildDir = outputDir.getParent() != null ? outputDir.getParent() : outputDir;
+        this.stateFile = buildDir.resolve(".incremental-state");
     }
 
     /**
@@ -206,7 +208,7 @@ public class AbiIncrementalBuild {
 
         state.save(stateFile);
         AbiManifest.write(
-            outputDir.resolve(AbiManifest.FILENAME),
+            buildDir.resolve(AbiManifest.FILENAME),
             state.getAllAbiFingerprints());
     }
 
