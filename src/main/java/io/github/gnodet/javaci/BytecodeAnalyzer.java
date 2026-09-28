@@ -35,8 +35,11 @@ public class BytecodeAnalyzer {
     ) {}
 
     public static ClassAnalysis analyze(Path classFile) throws Exception {
-        byte[] bytes = Files.readAllBytes(classFile);
-        ClassModel cm = ClassFile.of().parse(bytes);
+        return analyze(Files.readAllBytes(classFile));
+    }
+
+    public static ClassAnalysis analyze(byte[] classBytes) {
+        ClassModel cm = ClassFile.of().parse(classBytes);
 
         String className = toJavaName(cm.thisClass().asInternalName());
         Set<String> referencedTypes = extractReferencedTypes(cm);

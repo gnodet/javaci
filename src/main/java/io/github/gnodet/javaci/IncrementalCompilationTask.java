@@ -47,6 +47,8 @@ public class IncrementalCompilationTask implements JavaCompiler.CompilationTask 
     private Iterable<? extends Processor> processors;
     private Locale locale;
     private final List<String> modules = new ArrayList<>();
+    private List<Path> classpathEntries;
+    private Set<Path> reactorModulePaths;
 
     IncrementalCompilationTask(JavaCompiler delegate, Writer out,
             JavaFileManager fileManager,
@@ -82,6 +84,24 @@ public class IncrementalCompilationTask implements JavaCompiler.CompilationTask 
         if (moduleNames != null) {
             moduleNames.forEach(this.modules::add);
         }
+    }
+
+    /**
+     * Sets the classpath entries for cross-module ABI tracking. If not set,
+     * entries are read from the {@link StandardJavaFileManager}'s
+     * {@link StandardLocation#CLASS_PATH CLASS_PATH} location.
+     */
+    public void setClasspathEntries(List<Path> entries) {
+        this.classpathEntries = entries;
+    }
+
+    /**
+     * Marks specific classpath entries as reactor modules (Maven option 2).
+     * Reactor modules are checked for {@link AbiManifest} files first;
+     * if absent, their class files are analyzed directly.
+     */
+    public void setReactorModulePaths(Set<Path> paths) {
+        this.reactorModulePaths = paths;
     }
 
     @Override
@@ -127,7 +147,9 @@ public class IncrementalCompilationTask implements JavaCompiler.CompilationTask 
         if (results == null) return false;
 
         var state = IncrementalState.from(hashes, results);
+        resolveAndStoreExternalFingerprints(state, outputPath);
         state.save(stateFile);
+        AbiManifest.write(outputPath.resolve(AbiManifest.FILENAME), state.getAllAbiFingerprints());
 
         log("Incremental: state saved (%d types analyzed)", results.size());
         return true;
@@ -156,18 +178,24 @@ public class IncrementalCompilationTask implements JavaCompiler.CompilationTask 
             }
         }
 
-        if (changedFiles.isEmpty() && newFiles.isEmpty() && deletedFiles.isEmpty()) {
+        // Check external (cross-module) ABI changes
+        Set<String> externallyInvalidated = checkExternalAbiChanges(previousState, outputPath);
+
+        if (changedFiles.isEmpty() && newFiles.isEmpty() && deletedFiles.isEmpty()
+                && externallyInvalidated.isEmpty()) {
             log("Incremental: no changes detected");
             return true;
         }
 
-        log("Incremental: %d changed, %d new, %d deleted",
-            changedFiles.size(), newFiles.size(), deletedFiles.size());
+        log("Incremental: %d changed, %d new, %d deleted, %d externally invalidated",
+            changedFiles.size(), newFiles.size(), deletedFiles.size(),
+            externallyInvalidated.size());
 
         // Initial recompilation set
         var toRecompile = new TreeSet<String>();
         toRecompile.addAll(changedFiles);
         toRecompile.addAll(newFiles);
+        toRecompile.addAll(externallyInvalidated);
 
         for (String deleted : deletedFiles) {
             for (String type : previousState.getTypesFromSource(deleted)) {
@@ -251,7 +279,9 @@ public class IncrementalCompilationTask implements JavaCompiler.CompilationTask 
             toRecompile = additionalFiles;
         }
 
+        resolveAndStoreExternalFingerprints(state, outputPath);
         state.save(stateFile);
+        AbiManifest.write(outputPath.resolve(AbiManifest.FILENAME), state.getAllAbiFingerprints());
 
         log("Incremental: %d file(s) compiled, %d unchanged",
             allCompiled.size(), currentHashes.size() - allCompiled.size());
@@ -304,6 +334,65 @@ public class IncrementalCompilationTask implements JavaCompiler.CompilationTask 
         if (processors != null) task.setProcessors(processors);
         if (locale != null) task.setLocale(locale);
         if (!modules.isEmpty()) task.addModules(modules);
+    }
+
+    // --- Cross-module ABI tracking ---
+
+    private Set<String> checkExternalAbiChanges(IncrementalState state, Path outputPath) {
+        var invalidated = new TreeSet<String>();
+        Set<String> externalDeps = state.getExternalDependencies();
+        if (externalDeps.isEmpty()) return invalidated;
+
+        var resolver = new ExternalAbiResolver(resolveClasspath(outputPath), reactorModulePaths);
+        Map<String, String> currentFingerprints = resolver.resolve(externalDeps);
+        Map<String, String> storedFingerprints = state.getExternalFingerprints();
+
+        var changedExternalTypes = new TreeSet<String>();
+        for (var entry : currentFingerprints.entrySet()) {
+            String stored = storedFingerprints.get(entry.getKey());
+            if (stored == null || !stored.equals(entry.getValue())) {
+                changedExternalTypes.add(entry.getKey());
+            }
+        }
+
+        if (!changedExternalTypes.isEmpty()) {
+            log("Incremental: external ABI changes: %s", changedExternalTypes);
+            for (String changedType : changedExternalTypes) {
+                for (String consumer : state.getAllConsumers(changedType)) {
+                    String sf = state.sourceFileFor(consumer);
+                    if (sf != null) invalidated.add(sf);
+                }
+            }
+        }
+
+        state.setExternalFingerprints(currentFingerprints);
+        return invalidated;
+    }
+
+    private void resolveAndStoreExternalFingerprints(IncrementalState state, Path outputPath) {
+        Set<String> externalDeps = state.getExternalDependencies();
+        if (!externalDeps.isEmpty()) {
+            var resolver = new ExternalAbiResolver(resolveClasspath(outputPath), reactorModulePaths);
+            state.setExternalFingerprints(resolver.resolve(externalDeps));
+        }
+    }
+
+    private List<Path> resolveClasspath(Path outputPath) {
+        if (classpathEntries != null) return classpathEntries;
+        if (fileManager instanceof StandardJavaFileManager sfm) {
+            try {
+                var entries = new ArrayList<Path>();
+                var location = sfm.getLocation(StandardLocation.CLASS_PATH);
+                if (location != null) {
+                    for (File f : location) entries.add(f.toPath());
+                }
+                if (!entries.contains(outputPath)) {
+                    entries.add(outputPath);
+                }
+                return entries;
+            } catch (Exception ignored) {}
+        }
+        return List.of(outputPath);
     }
 
     // --- Utility ---

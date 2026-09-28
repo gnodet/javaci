@@ -24,10 +24,11 @@ import java.util.*;
  */
 public class IncrementalState {
 
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
 
     private final Map<String, String> sourceHashes = new LinkedHashMap<>();
     private final Map<String, TypeInfo> types = new LinkedHashMap<>();
+    private final Map<String, String> externalFingerprints = new LinkedHashMap<>();
 
     public record TypeInfo(
         String sourceFile,
@@ -108,10 +109,50 @@ public class IncrementalState {
         return info != null ? info.sourceFile() : null;
     }
 
+    public Map<String, String> getExternalFingerprints() {
+        return Collections.unmodifiableMap(externalFingerprints);
+    }
+
+    public void setExternalFingerprints(Map<String, String> fingerprints) {
+        externalFingerprints.clear();
+        externalFingerprints.putAll(fingerprints);
+    }
+
+    /**
+     * Returns the set of type names that appear in dependency sets but are not
+     * defined in this module (no {@link TypeInfo} entry). These are types from
+     * the classpath — other reactor modules or external libraries.
+     */
+    public Set<String> getExternalDependencies() {
+        var external = new TreeSet<String>();
+        for (TypeInfo info : types.values()) {
+            for (String dep : info.signatureDeps()) {
+                if (!types.containsKey(dep)) external.add(dep);
+            }
+            for (String dep : info.implementationDeps()) {
+                if (!types.containsKey(dep)) external.add(dep);
+            }
+        }
+        return external;
+    }
+
+    /**
+     * Returns the current ABI fingerprints for all types in this module,
+     * suitable for writing to an {@link AbiManifest}.
+     */
+    public Map<String, String> getAllAbiFingerprints() {
+        var result = new LinkedHashMap<String, String>();
+        for (var entry : types.entrySet()) {
+            result.put(entry.getKey(), entry.getValue().abiFingerprint());
+        }
+        return result;
+    }
+
     public IncrementalState copy() {
         var copy = new IncrementalState();
         copy.sourceHashes.putAll(this.sourceHashes);
         copy.types.putAll(this.types);
+        copy.externalFingerprints.putAll(this.externalFingerprints);
         return copy;
     }
 
@@ -144,6 +185,8 @@ public class IncrementalState {
                 writeStringSet(out, entry.getValue().signatureDeps());
                 writeStringSet(out, entry.getValue().implementationDeps());
             }
+            // v2: external fingerprints
+            writeStringMap(out, externalFingerprints);
         }
     }
 
@@ -151,7 +194,7 @@ public class IncrementalState {
         if (!Files.exists(file)) return null;
         try (var in = new DataInputStream(new BufferedInputStream(Files.newInputStream(file)))) {
             int version = in.readInt();
-            if (version != VERSION) return null;
+            if (version < 1 || version > VERSION) return null;
 
             var state = new IncrementalState();
             int sourceCount = in.readInt();
@@ -166,6 +209,9 @@ public class IncrementalState {
                 Set<String> sigDeps = readStringSet(in);
                 Set<String> implDeps = readStringSet(in);
                 state.types.put(name, new TypeInfo(sourceFile, abi, sigDeps, implDeps));
+            }
+            if (version >= 2) {
+                readStringMap(in, state.externalFingerprints);
             }
             return state;
         } catch (IOException e) {
@@ -183,5 +229,20 @@ public class IncrementalState {
         var set = new TreeSet<String>();
         for (int i = 0; i < count; i++) set.add(in.readUTF());
         return set;
+    }
+
+    private static void writeStringMap(DataOutputStream out, Map<String, String> map) throws IOException {
+        out.writeInt(map.size());
+        for (var entry : map.entrySet()) {
+            out.writeUTF(entry.getKey());
+            out.writeUTF(entry.getValue());
+        }
+    }
+
+    private static void readStringMap(DataInputStream in, Map<String, String> target) throws IOException {
+        int count = in.readInt();
+        for (int i = 0; i < count; i++) {
+            target.put(in.readUTF(), in.readUTF());
+        }
     }
 }
