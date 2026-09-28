@@ -98,10 +98,10 @@ public class CompilationAnalyzer implements TaskListener {
         for (var analysis : analyses.values()) {
             String consumer = analysis.qualifiedName();
             for (String dep : analysis.signatureDeps()) {
-                sigConsumers.computeIfAbsent(dep, _ -> new TreeSet<>()).add(consumer);
+                sigConsumers.computeIfAbsent(dep, k -> new TreeSet<>()).add(consumer);
             }
             for (String dep : analysis.implementationDeps()) {
-                implConsumers.computeIfAbsent(dep, _ -> new TreeSet<>()).add(consumer);
+                implConsumers.computeIfAbsent(dep, k -> new TreeSet<>()).add(consumer);
             }
         }
 

@@ -89,11 +89,12 @@ public class AbiExtractor {
             .toList();
 
         for (Element member : members) {
-            switch (member) {
-                case VariableElement ve -> appendField(sb, ve, indent + 1);
-                case ExecutableElement ee -> appendMethod(sb, ee, indent + 1);
-                case TypeElement te -> appendType(sb, te, indent + 1);
-                default -> {}
+            if (member instanceof VariableElement ve) {
+                appendField(sb, ve, indent + 1);
+            } else if (member instanceof ExecutableElement ee) {
+                appendMethod(sb, ee, indent + 1);
+            } else if (member instanceof TypeElement te) {
+                appendType(sb, te, indent + 1);
             }
         }
     }
@@ -165,7 +166,7 @@ public class AbiExtractor {
             byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
             var hex = new StringBuilder();
             for (byte b : hash) hex.append(String.format("%02x", b));
-            return hex.toString().substring(0, 16);
+            return hex.substring(0, 16);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

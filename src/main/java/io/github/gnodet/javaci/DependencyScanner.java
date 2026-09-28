@@ -120,12 +120,16 @@ public class DependencyScanner extends TreePathScanner<Void, Void> {
         Element element = resolveElement(path);
         if (element == null) return;
 
-        TypeElement typeElement = switch (element) {
-            case TypeElement te -> te;
-            case ExecutableElement ee -> enclosingType(ee);
-            case VariableElement ve -> enclosingType(ve);
-            default -> null;
-        };
+        TypeElement typeElement;
+        if (element instanceof TypeElement te) {
+            typeElement = te;
+        } else if (element instanceof ExecutableElement ee) {
+            typeElement = enclosingType(ee);
+        } else if (element instanceof VariableElement ve) {
+            typeElement = enclosingType(ve);
+        } else {
+            typeElement = null;
+        }
 
         if (typeElement == null) return;
 
