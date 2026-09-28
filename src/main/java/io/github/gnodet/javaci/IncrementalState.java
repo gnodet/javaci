@@ -24,11 +24,12 @@ import java.util.*;
  */
 public class IncrementalState {
 
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
 
     private final Map<String, String> sourceHashes = new LinkedHashMap<>();
     private final Map<String, TypeInfo> types = new LinkedHashMap<>();
     private final Map<String, String> externalFingerprints = new LinkedHashMap<>();
+    private final Map<String, String> classpathIdentities = new LinkedHashMap<>();
 
     public record TypeInfo(
         String sourceFile,
@@ -118,6 +119,15 @@ public class IncrementalState {
         externalFingerprints.putAll(fingerprints);
     }
 
+    public Map<String, String> getClasspathIdentities() {
+        return Collections.unmodifiableMap(classpathIdentities);
+    }
+
+    public void setClasspathIdentities(Map<String, String> identities) {
+        classpathIdentities.clear();
+        classpathIdentities.putAll(identities);
+    }
+
     /**
      * Returns the set of type names that appear in dependency sets but are not
      * defined in this module (no {@link TypeInfo} entry). These are types from
@@ -153,6 +163,7 @@ public class IncrementalState {
         copy.sourceHashes.putAll(this.sourceHashes);
         copy.types.putAll(this.types);
         copy.externalFingerprints.putAll(this.externalFingerprints);
+        copy.classpathIdentities.putAll(this.classpathIdentities);
         return copy;
     }
 
@@ -187,6 +198,8 @@ public class IncrementalState {
             }
             // v2: external fingerprints
             writeStringMap(out, externalFingerprints);
+            // v3: classpath entry identities
+            writeStringMap(out, classpathIdentities);
         }
     }
 
@@ -212,6 +225,9 @@ public class IncrementalState {
             }
             if (version >= 2) {
                 readStringMap(in, state.externalFingerprints);
+            }
+            if (version >= 3) {
+                readStringMap(in, state.classpathIdentities);
             }
             return state;
         } catch (IOException e) {

@@ -343,7 +343,7 @@ public class IncrementalCompilationTask implements JavaCompiler.CompilationTask 
         Set<String> externalDeps = state.getExternalDependencies();
         if (externalDeps.isEmpty()) return invalidated;
 
-        var resolver = new ExternalAbiResolver(resolveClasspath(outputPath), reactorModulePaths);
+        var resolver = createResolver(state, outputPath);
         Map<String, String> currentFingerprints = resolver.resolve(externalDeps);
         Map<String, String> storedFingerprints = state.getExternalFingerprints();
 
@@ -366,14 +366,16 @@ public class IncrementalCompilationTask implements JavaCompiler.CompilationTask 
         }
 
         state.setExternalFingerprints(currentFingerprints);
+        state.setClasspathIdentities(resolver.computeCurrentJarIdentities());
         return invalidated;
     }
 
     private void resolveAndStoreExternalFingerprints(IncrementalState state, Path outputPath) {
         Set<String> externalDeps = state.getExternalDependencies();
         if (!externalDeps.isEmpty()) {
-            var resolver = new ExternalAbiResolver(resolveClasspath(outputPath), reactorModulePaths);
+            var resolver = createResolver(state, outputPath);
             state.setExternalFingerprints(resolver.resolve(externalDeps));
+            state.setClasspathIdentities(resolver.computeCurrentJarIdentities());
         }
     }
 
@@ -393,6 +395,12 @@ public class IncrementalCompilationTask implements JavaCompiler.CompilationTask 
             } catch (Exception ignored) {}
         }
         return List.of(outputPath);
+    }
+
+    private ExternalAbiResolver createResolver(IncrementalState state, Path outputPath) {
+        var resolver = new ExternalAbiResolver(resolveClasspath(outputPath), reactorModulePaths);
+        resolver.setCachedState(state.getExternalFingerprints(), state.getClasspathIdentities());
+        return resolver;
     }
 
     // --- Utility ---
