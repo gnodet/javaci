@@ -28,3 +28,6 @@ jobs:
     # once https://github.com/apache/maven-gh-actions-shared/pull/346 is merged.
     uses: gnodet/maven-gh-actions-shared/.github/workflows/pr-labels.yml@main
     secrets: inherit
+    permissions:
+      pull-requests: write
+      issues: write
