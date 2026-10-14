@@ -5,5 +5,4 @@ on:
 
 jobs:
   test:
-    uses: gnodet/maven-gh-actions-shared/.github/workflows/pr-labels.yml@main
-    secrets: inherit
+    uses: gnodet/maven-gh-actions-shared/.github/workflows/hello-test.yml@main
