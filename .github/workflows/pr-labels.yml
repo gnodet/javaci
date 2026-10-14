@@ -23,9 +23,8 @@ on:
 
 jobs:
   pr-labels:
-    # Point at the feature branch in the fork while the upstream PR is pending review.
+    # Points at the fork's main branch while upstream PR #346 is pending review.
     # Switch to apache/maven-gh-actions-shared/.github/workflows/pr-labels.yml@v5
     # once https://github.com/apache/maven-gh-actions-shared/pull/346 is merged.
     uses: gnodet/maven-gh-actions-shared/.github/workflows/pr-labels.yml@main
-    secrets:
-      LLMAO_TOKEN: ${{ secrets.LLMAO_TOKEN }}
+    secrets: inherit
