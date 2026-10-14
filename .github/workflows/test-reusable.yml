@@ -3,4 +3,4 @@ on:
   workflow_dispatch:
 jobs:
   test:
-    uses: gnodet/maven-gh-actions-shared/.github/workflows/medium-test.yml@main
+    uses: gnodet/maven-gh-actions-shared/.github/workflows/pr-labels.yml@main
